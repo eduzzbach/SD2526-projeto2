@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+option java_package = "sd2526.trab.impl.grpc.generated_java";
+option java_outer_classname = "AdminMessagesProtoBuf";
+
+service GrpcAdminMessages {
+	rpc RemotePostMessage(GrpcAdminMessage ) returns (google.protobuf.Empty);
+	rpc RemoteDeleteMessage(RemoteDeleteMessageArgs) returns (google.protobuf.Empty);	
+	rpc RemoteDeleteUserInbox(RemoteDeleteUserInboxArgs) returns (google.protobuf.Empty);		
+}
+
+message GrpcAdminMessage {
+	string id = 1;
+	string sender = 2;
+	repeated string destination = 3;
+	int64 creationTime = 4;
+	string subject = 5;
+	string contents = 6;
+}
+
+message RemoteDeleteMessageArgs {
+	string mid = 1;
+}
+
+message RemoteDeleteUserInboxArgs {
+	string name = 1;
+}

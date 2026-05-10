@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+option java_package = "sd2526.trab.impl.grpc.generated_java";
+option java_outer_classname = "AdminUsersProtoBuf";
+
+service GrpcAdminUsers {
+	rpc CheckUsers( CheckUsersArgs ) returns (CheckUsersResult);
+}
+
+message CheckUsersArgs {
+	repeated string names = 1;
+}
+
+message CheckUsersResult {
+	repeated string unknown = 1;
+}

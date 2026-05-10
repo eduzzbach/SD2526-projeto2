@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package sd2526.trab.api.grpc;
+
+option java_package = "sd2526.trab.impl.grpc.generated_java";
+option java_outer_classname = "UsersProtoBuf";
+
+service GrpcUsers {
+	rpc PostUser(GrpcUser) returns (PostUserResult);
+	rpc GetUser(GetUserArgs) returns (GetUserResult);
+	rpc UpdateUser(UpdateUserArgs) returns (UpdateUserResult);
+	rpc DeleteUser(DeleteUserArgs) returns (DeleteUserResult);
+	rpc SearchUsers(SearchUsersArgs) returns (stream GrpcUser);
+}
+
+message GrpcUser {
+	string name = 1;
+	optional string pwd = 2;
+	optional string displayName = 3;
+	optional string domain = 4;
+}
+
+message PostUserResult {
+	string userAddress = 1;
+}
+
+message GetUserArgs {
+	string name = 1;
+	string pwd = 2;
+}
+
+message GetUserResult {
+	GrpcUser user = 1;
+}
+
+message UpdateUserArgs {
+	string name = 1;
+	string pwd = 2;
+	GrpcUser info = 3;
+}
+
+message UpdateUserResult {
+	GrpcUser user = 1;
+}
+
+message DeleteUserArgs {
+	string name = 1;
+	string pwd = 2;
+}
+
+message DeleteUserResult {
+	GrpcUser user = 1;
+}
+
+message SearchUsersArgs {
+	string name = 1;
+	string pwd = 2;
+	string query = 3;
+}
+
