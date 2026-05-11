@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"name": "SD2526-projeto2",
+			"path": "."
+		},
+		{
+			"name": "target",
+			"path": "../sd2526.trab1sol.v1/target"
+		},
+		{
+			"name": "src",
+			"path": "../sd2526.trab1sol.v1/src"
+		}
+	],
+	"settings": {}
+}
