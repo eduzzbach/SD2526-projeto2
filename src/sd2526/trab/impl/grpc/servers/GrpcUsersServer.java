@@ -1,10 +1,10 @@
 package sd2526.trab.impl.grpc.servers;
 
-import java.io.IOException;
-import java.util.List;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.security.KeyStore;
+import java.util.List;
 import java.util.logging.Logger;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -14,9 +14,6 @@ import io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.NettyServerBuilder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
-
-import sd2526.trab.impl.grpc.servers.AbstractGrpcServer;
-
 import sd2526.trab.api.java.Users;
 
 public class GrpcUsersServer extends AbstractGrpcServer {
@@ -62,6 +59,7 @@ public class GrpcUsersServer extends AbstractGrpcServer {
 		String serverURI = String.format(SERVER_BASE_URI, InetAddress.getLocalHost().getHostName(), PORT, GRPC_CTX);
 
 		Log.info(String.format("Users gRPC Server ready @ %s\n", serverURI));
+		
 		// Start gRPC server
  		server.start().awaitTermination();
 		

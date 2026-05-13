@@ -3,6 +3,7 @@ package sd2526.trab.impl.grpc.clients;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.logging.Logger;
 
 import sd2526.trab.api.java.Result;
 import sd2526.trab.impl.api.java.AdminUsers;
@@ -13,9 +14,11 @@ import sd2526.trab.impl.grpc.generated_java.GrpcAdminUsersGrpc.GrpcAdminUsersBlo
 public class GrpcAdminUsersClient extends GrpcClient implements AdminUsers {
 
 	final GrpcAdminUsersBlockingStub admin;
+		private static Logger Log = Logger.getLogger(GrpcUsersClient.class.getName());
+
 
 	public GrpcAdminUsersClient(String serverURI) {
-		super(serverURI);
+		super(serverURI, Log);
 		this.admin = GrpcAdminUsersGrpc.newBlockingStub( super.channel );	
 	}
 

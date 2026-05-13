@@ -1,13 +1,13 @@
 package sd2526.trab.impl.grpc.clients;
 
-import static sd2526.trab.impl.grpc.common.DataModelAdaptor.GrpcMessage_to_Message;
-import static sd2526.trab.impl.grpc.common.DataModelAdaptor.Message_to_GrpcMessage;
-
 import java.util.List;
+import java.util.logging.Logger;
 
 import sd2526.trab.api.Message;
 import sd2526.trab.api.java.Messages;
 import sd2526.trab.api.java.Result;
+import static sd2526.trab.impl.grpc.common.DataModelAdaptor.GrpcMessage_to_Message;
+import static sd2526.trab.impl.grpc.common.DataModelAdaptor.Message_to_GrpcMessage;
 import sd2526.trab.impl.grpc.generated_java.GrpcMessagesGrpc;
 import sd2526.trab.impl.grpc.generated_java.MessagesProtoBuf.DeleteMessageArgs;
 import sd2526.trab.impl.grpc.generated_java.MessagesProtoBuf.GetAllInboxMessagesArgs;
@@ -19,10 +19,12 @@ import sd2526.trab.impl.grpc.generated_java.MessagesProtoBuf.SearchInboxArgs;
 public class GrpcMessagesClient extends GrpcClient implements Messages {
 
 	final GrpcMessagesGrpc.GrpcMessagesBlockingStub stub;
+	private static Logger Log = Logger.getLogger(GrpcUsersClient.class.getName());
+
 
 	
 	public GrpcMessagesClient(String serverUrl) {
-		super(serverUrl);
+		super(serverUrl, Log);
 		this.stub = GrpcMessagesGrpc.newBlockingStub( super.channel );	
 	}
 

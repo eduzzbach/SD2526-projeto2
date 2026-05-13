@@ -5,6 +5,7 @@ import static sd2526.trab.api.java.Result.ok;
 import static sd2526.trab.api.java.Result.ErrorCode.INTERNAL_ERROR;
 import static sd2526.trab.api.java.Result.ErrorCode.TIMEOUT;
 
+import java.net.URI;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 
@@ -31,19 +32,24 @@ public class RestClient {
 	protected static final int MAX_DEADLINE = 30000;
 	protected static final int RETRY_SLEEP = 250;
 
+	final Logger logger;
+
 	final Client client;
 	final String serverURI;
 	final ClientConfig config;
 
 	final WebTarget target;
 	
-	protected RestClient(String serverURI, String servicePath ) {
+	protected RestClient(String serverURI, String servicePath, Logger logger ) {
 		this.serverURI = serverURI;
 		this.config = new ClientConfig();
+		this.logger = logger;
 
 		config.property(ClientProperties.READ_TIMEOUT, READ_TIMEOUT);
 		config.property(ClientProperties.CONNECT_TIMEOUT, CONNECT_TIMEOUT);
+
 		this.client = ClientBuilder.newClient(config);
+		
 		this.target = client.target( serverURI ).path( servicePath );
 	}
 

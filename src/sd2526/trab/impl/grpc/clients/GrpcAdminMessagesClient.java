@@ -1,10 +1,11 @@
 package sd2526.trab.impl.grpc.clients;
 
-import static sd2526.trab.impl.grpc.common.DataModelAdaptor.Message_to_GrpcAdminMessage;
+import java.util.logging.Logger;
 
 import sd2526.trab.api.Message;
 import sd2526.trab.api.java.Result;
 import sd2526.trab.impl.api.java.AdminMessages;
+import static sd2526.trab.impl.grpc.common.DataModelAdaptor.Message_to_GrpcAdminMessage;
 import sd2526.trab.impl.grpc.generated_java.AdminMessagesProtoBuf.RemoteDeleteMessageArgs;
 import sd2526.trab.impl.grpc.generated_java.AdminMessagesProtoBuf.RemoteDeleteUserInboxArgs;
 import sd2526.trab.impl.grpc.generated_java.GrpcAdminMessagesGrpc;
@@ -13,9 +14,11 @@ import sd2526.trab.impl.grpc.generated_java.GrpcAdminMessagesGrpc.GrpcAdminMessa
 public class GrpcAdminMessagesClient extends GrpcClient implements AdminMessages {
 
 	final GrpcAdminMessagesBlockingStub admin;
+	private static Logger Log = Logger.getLogger(GrpcUsersClient.class.getName());
+
 	
 	public GrpcAdminMessagesClient(String serverUrl) {
-		super(serverUrl);
+		super(serverUrl, Log);
 		this.admin = GrpcAdminMessagesGrpc.newBlockingStub( super.channel );	
 	}
 

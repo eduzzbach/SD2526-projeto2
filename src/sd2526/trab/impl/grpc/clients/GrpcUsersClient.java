@@ -1,9 +1,7 @@
 package sd2526.trab.impl.grpc.clients;
 
-import static sd2526.trab.impl.grpc.common.DataModelAdaptor.GrpcUser_to_User;
-import static sd2526.trab.impl.grpc.common.DataModelAdaptor.User_to_GrpcUser;
-
 import java.util.List;
+import java.util.logging.Logger;
 
 import com.google.common.collect.Lists;
 
@@ -11,6 +9,8 @@ import sd2526.trab.api.User;
 import sd2526.trab.api.java.Result;
 import sd2526.trab.api.java.Users;
 import sd2526.trab.impl.grpc.common.DataModelAdaptor;
+import static sd2526.trab.impl.grpc.common.DataModelAdaptor.GrpcUser_to_User;
+import static sd2526.trab.impl.grpc.common.DataModelAdaptor.User_to_GrpcUser;
 import sd2526.trab.impl.grpc.generated_java.GrpcUsersGrpc;
 import sd2526.trab.impl.grpc.generated_java.UsersProtoBuf.DeleteUserArgs;
 import sd2526.trab.impl.grpc.generated_java.UsersProtoBuf.GetUserArgs;
@@ -20,9 +20,10 @@ import sd2526.trab.impl.grpc.generated_java.UsersProtoBuf.UpdateUserArgs;
 public class GrpcUsersClient extends GrpcClient implements Users {
 
 	final GrpcUsersGrpc.GrpcUsersBlockingStub stub;
+	private static Logger Log = Logger.getLogger(GrpcUsersClient.class.getName());
 
 	public GrpcUsersClient(String serverURI) {
-		super(serverURI);
+		super(serverURI, Log);
 		this.stub = GrpcUsersGrpc.newBlockingStub( super.channel );	
 	}
 
