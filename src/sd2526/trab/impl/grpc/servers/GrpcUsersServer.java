@@ -1,5 +1,7 @@
 package sd2526.trab.impl.grpc.servers;
 
+import java.net.UnknownHostException;
+
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -24,7 +26,7 @@ public class GrpcUsersServer extends AbstractGrpcServer {
 	
 	private static Logger Log = Logger.getLogger(GrpcUsersServer.class.getName());
 
-	public GrpcUsersServer() {
+	public GrpcUsersServer() throws UnknownHostException {
 		super( Log, Users.SERVICE_NAME, PORT);
 	}
 	
@@ -33,7 +35,7 @@ public class GrpcUsersServer extends AbstractGrpcServer {
 		return List.of( new GrpcUsersController(), new GrpcAdminUsersController() );
 	}
 	
-	public static void main(String[] args) throws Exception {
+	public static void main(String[] args) throws Exception, UnknownHostException  {
 		// Accessing values of the default JVM properties regarding filenames containing server keystore and respective password
 		String keyStoreFilename = System.getProperty("javax.net.ssl.keyStore");
 		String keyStorePassword = System.getProperty("javax.net.ssl.keyStorePassword");

@@ -9,11 +9,14 @@ import sd2526.trab.api.User;
 import sd2526.trab.api.java.Result;
 import sd2526.trab.api.java.Users;
 import sd2526.trab.api.rest.RestUsers;
+import java.util.logging.Logger;
 
 public class RestUsersClient extends RestClient implements Users {
 
+	static Logger Log = Logger.getLogger(RestAdminMessagesClient.class.getName());
+
 	public RestUsersClient( String serverURI ) {
-		super(serverURI, RestUsers.PATH);
+		super(serverURI, RestUsers.PATH, Log);
 	}
 	
 	@Override

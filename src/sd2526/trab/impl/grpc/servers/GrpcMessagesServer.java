@@ -1,5 +1,7 @@
 package sd2526.trab.impl.grpc.servers;
 
+import java.net.UnknownHostException;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.logging.Logger;
@@ -11,7 +13,7 @@ public static final int PORT = 14567;
 	
 	private static Logger Log = Logger.getLogger(GrpcMessagesServer.class.getName());
 
-	public GrpcMessagesServer() {
+	public GrpcMessagesServer() throws UnknownHostException {
 		super( Log, Messages.SERVICE_NAME, PORT);
 	}
 	
@@ -20,7 +22,7 @@ public static final int PORT = 14567;
 		return List.of( new GrpcMessagesController(), new GrpcAdminMessagesController() );
 	}
 	
-	public static void main(String[] args) {
+	public static void main(String[] args) throws UnknownHostException {
 		try {
 			new GrpcMessagesServer().start();
 		} catch (IOException e) {

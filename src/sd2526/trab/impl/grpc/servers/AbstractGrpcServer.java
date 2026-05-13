@@ -1,5 +1,7 @@
 package sd2526.trab.impl.grpc.servers;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 
 import java.io.IOException;
 import java.util.List;
@@ -19,8 +21,8 @@ public abstract class AbstractGrpcServer extends AbstractServer {
 
 	protected final Server server;
 
-	protected AbstractGrpcServer(Logger log, String service, int port) {
-		super(log, service, String.format(SERVER_BASE_URI, IP.hostAddress(), port, GRPC_CTX));
+	protected AbstractGrpcServer(Logger log, String service, int port) throws UnknownHostException {
+		super(log, service, String.format(SERVER_BASE_URI.formatted(InetAddress.getLocalHost().getHostName(), port, GRPC_CTX)));
 		
 		var builder = ServerBuilder.forPort(port);
 		for( var s : controllers( super.serverURI ) )

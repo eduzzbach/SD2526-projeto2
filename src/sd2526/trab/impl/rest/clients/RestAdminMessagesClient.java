@@ -7,11 +7,14 @@ import sd2526.trab.api.java.Result;
 import sd2526.trab.api.rest.RestMessages;
 import sd2526.trab.impl.api.java.AdminMessages;
 import sd2526.trab.impl.api.rest.RestAdminMessages;
+import java.util.logging.Logger;
 
 public class RestAdminMessagesClient extends RestClient implements AdminMessages {
 
+	static Logger Log = Logger.getLogger(RestAdminMessagesClient.class.getName());
+
 	public RestAdminMessagesClient(String serverURI) {
-		super(serverURI, RestMessages.PATH);
+		super(serverURI, RestMessages.PATH, Log);
 	}
 
 	@Override

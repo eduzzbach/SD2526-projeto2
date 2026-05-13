@@ -10,11 +10,14 @@ import sd2526.trab.api.java.Result;
 import sd2526.trab.api.rest.RestUsers;
 import sd2526.trab.impl.api.java.AdminUsers;
 import sd2526.trab.impl.api.rest.RestAdminUsers;
+import java.util.logging.Logger;
 
 public class RestAdminUsersClient extends RestClient implements AdminUsers {
 
+	static Logger Log = Logger.getLogger(RestAdminMessagesClient.class.getName());
+
 	public RestAdminUsersClient(String serverURI) {
-		super(serverURI, RestUsers.PATH);
+		super(serverURI, RestUsers.PATH, Log);
 	}
 
 	@Override
