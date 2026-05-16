@@ -39,17 +39,18 @@ public class GrpcUsersServer extends AbstractGrpcServer {
 		// Accessing values of the default JVM properties regarding filenames containing server keystore and respective password
 		String keyStoreFilename = System.getProperty("javax.net.ssl.keyStore");
 		String keyStorePassword = System.getProperty("javax.net.ssl.keyStorePassword");
-
+		
 		// Init instance of keystore and load with info from server keystore
 		KeyStore keystore = KeyStore.getInstance(KeyStore.getDefaultType());
 			try(FileInputStream input = new FileInputStream(keyStoreFilename)) {
 			keystore.load(input, keyStorePassword.toCharArray());
 		}
-
+		
+		/*
 		// Create keymanagerfactory and load the keystore
 		KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
 		keyManagerFactory.init(keystore, keyStorePassword.toCharArray());
-
+		
 		// SSL context that uses keymanagerfactory to access private and public key certificate of the server
 		SslContext context = GrpcSslContexts.configure(SslContextBuilder.forServer(keyManagerFactory)).build();
  		GrpcUsersController stub = new GrpcUsersController();
@@ -64,6 +65,7 @@ public class GrpcUsersServer extends AbstractGrpcServer {
 		
 		// Start gRPC server
  		server.start().awaitTermination();
+		*/
 		
 		try {
 			new GrpcUsersServer().start();
