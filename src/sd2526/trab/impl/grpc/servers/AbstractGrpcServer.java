@@ -12,6 +12,18 @@ import io.grpc.ServerBuilder;
 import sd2526.trab.impl.discovery.Discovery;
 import sd2526.trab.impl.java.servers.AbstractServer;
 import sd2526.trab.impl.utils.IP;
+import sd2526.trab.impl.grpc.servers.GrpcController;
+
+import java.io.FileInputStream;
+import java.security.KeyStore;
+
+import javax.net.ssl.KeyManagerFactory;
+
+import io.grpc.netty.GrpcSslContexts;
+import io.grpc.netty.NettyServerBuilder;
+
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
 
 
 public abstract class AbstractGrpcServer extends AbstractServer {
@@ -21,12 +33,27 @@ public abstract class AbstractGrpcServer extends AbstractServer {
 
 	protected final Server server;
 
-	protected AbstractGrpcServer(Logger log, String service, int port) throws UnknownHostException {
+	protected AbstractGrpcServer(Logger log, String service, int port) throws UnknownHostException, Exception {
 		super(log, service, String.format(SERVER_BASE_URI.formatted(InetAddress.getLocalHost().getHostName(), port, GRPC_CTX)));
 		
-		var builder = ServerBuilder.forPort(port);
-		for( var s : controllers( super.serverURI ) )
-			builder.addService( s );
+		String keyStoreFilename = System.getProperty("javax.net.ssl.keyStore");
+ 		String keyStorePassword = System.getProperty("javax.net.ssl.keyStorePassword");
+		KeyStore keystore = KeyStore.getInstance(KeyStore.getDefaultType());
+		try(FileInputStream input = new FileInputStream(keyStoreFilename)) {
+			keystore.load(input, keyStorePassword.toCharArray());
+		}
+		KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+		keyManagerFactory.init(keystore, keyStorePassword.toCharArray());
+
+		SslContext context = GrpcSslContexts.configure(SslContextBuilder.forServer(keyManagerFactory)).build();
+
+		var builder = NettyServerBuilder.forPort(port).sslContext(context);
+
+		String serverURI = String.format(SERVER_BASE_URI, InetAddress.getLocalHost().getHostName(), port, GRPC_CTX);
+
+		for( var stub : controllers( serverURI ) ) {
+			builder.addService(stub);
+		}
 		
 		this.server = builder.build();
 	}

@@ -13,7 +13,7 @@ public static final int PORT = 14567;
 	
 	private static Logger Log = Logger.getLogger(GrpcMessagesServer.class.getName());
 
-	public GrpcMessagesServer() throws UnknownHostException {
+	public GrpcMessagesServer() throws UnknownHostException, Exception {
 		super( Log, Messages.SERVICE_NAME, PORT);
 	}
 	
@@ -22,7 +22,7 @@ public static final int PORT = 14567;
 		return List.of( new GrpcMessagesController(), new GrpcAdminMessagesController() );
 	}
 	
-	public static void main(String[] args) throws UnknownHostException {
+	public static void main(String[] args) throws UnknownHostException, Exception {
 		try {
 			new GrpcMessagesServer().start();
 		} catch (IOException e) {
