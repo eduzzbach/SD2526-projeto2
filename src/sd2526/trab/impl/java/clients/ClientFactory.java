@@ -1,7 +1,9 @@
 package sd2526.trab.impl.java.clients;
 
 import java.net.URI;
+import java.util.Arrays;
 import java.util.function.Function;
+import java.util.logging.Logger;
 
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -14,6 +16,8 @@ import sd2526.trab.impl.utils.IP;
 
 public class ClientFactory<T> {
 
+	private static final Logger Log = Logger.getLogger(ClientFactory.class.getName());
+
 	private static final String REST = "/rest";
 	private static final String GRPC = "/grpc";
 
@@ -25,6 +29,7 @@ public class ClientFactory<T> {
 			.build(new CacheLoader<>() {
 				@Override
 				public T load(URI uri) throws Exception {
+					Log.info(() -> "Creating client for URI: %s".formatted(uri));
 					return newClient( uri.toString() );
 				}
 			});
@@ -41,7 +46,11 @@ public class ClientFactory<T> {
 	
 	public T get(String domain) {
 		var sn = "%s@%s".formatted(serviceName, domain);
-		return get(Discovery.getInstance().knownUrisOf(sn, 1)[0]);
+		var discovered = Discovery.getInstance().knownUrisOf(sn, 1);
+		var selected = discovered[0];
+		Log.info(() -> "Client lookup for service=%s domain=%s candidates=%s selected=%s"
+				.formatted(serviceName, domain, Arrays.toString(discovered), selected));
+		return get(selected);
 	}
 	
 	private T newClient( String serverURI ) {
@@ -54,7 +63,11 @@ public class ClientFactory<T> {
 	}
 	
 	public T async() {
-		return get(Discovery.getInstance().knownUrisOf(serviceName, 1)[0]);
+		var discovered = Discovery.getInstance().knownUrisOf(serviceName, 1);
+		var selected = discovered[0];
+		Log.info(() -> "Async client lookup for service=%s candidates=%s selected=%s"
+				.formatted(serviceName, Arrays.toString(discovered), selected));
+		return get(selected);
 	}
 	
 	public T get(URI uri) {

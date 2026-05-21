@@ -7,6 +7,7 @@ import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
 import java.net.NetworkInterface;
 import java.net.URI;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -106,13 +107,23 @@ class DiscoveryImpl implements Discovery {
 
 	@Override
 	public URI[] knownUrisOf(String serviceName, int minEntries) {
+		boolean waitingLogged = false;
 		while(true) {
 			var res = uris.getOrDefault(serviceName, Collections.emptySet());
-			if( res.size() >= minEntries )
-				return res.toArray( new URI[res.size()]);
-			else
+			if( res.size() >= minEntries ) {
+				var known = res.toArray( new URI[res.size()]);
+				Log.info(() -> "Discovery lookup service=%s min=%d found=%d uris=%s"
+						.formatted(serviceName, minEntries, res.size(), Arrays.toString(known)));
+				return known;
+			} else {
+				if (!waitingLogged) {
+					int currentSize = res.size();
+					Log.info(() -> "Discovery waiting for service=%s min=%d current=%d"
+							.formatted(serviceName, minEntries, currentSize));
+					waitingLogged = true;
+				}
 				Sleep.ms(DISCOVERY_ANNOUNCE_PERIOD);
-				
+			}
 		}
 	}
 
@@ -132,7 +143,10 @@ class DiscoveryImpl implements Discovery {
 						if (parts.length == 2) {
 							var serviceName = parts[0];
 							var uri = URI.create(parts[1]);
-							uris.computeIfAbsent(serviceName, (k) -> ConcurrentHashMap.newKeySet()).add( uri );
+							var known = uris.computeIfAbsent(serviceName, (k) -> ConcurrentHashMap.newKeySet());
+							known.add(uri);
+							Log.info(() -> "Discovery learned service=%s uri=%s total=%d"
+									.formatted(serviceName, uri, known.size()));
 						}
 
 					} catch (Exception x) {

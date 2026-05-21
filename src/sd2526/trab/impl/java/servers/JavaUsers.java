@@ -1,12 +1,5 @@
 package sd2526.trab.impl.java.servers;
 
-import static sd2526.trab.api.java.Result.error;
-import static sd2526.trab.api.java.Result.ok;
-import static sd2526.trab.api.java.Result.ErrorCode.BAD_REQUEST;
-import static sd2526.trab.api.java.Result.ErrorCode.CONFLICT;
-import static sd2526.trab.api.java.Result.ErrorCode.FORBIDDEN;
-import static sd2526.trab.impl.java.clients.Clients.AdminMessagesClient;
-
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -16,9 +9,15 @@ import java.util.logging.Logger;
 import sd2526.trab.api.User;
 import sd2526.trab.api.java.Result;
 import sd2526.trab.api.java.Result.ErrorCode;
+import static sd2526.trab.api.java.Result.ErrorCode.BAD_REQUEST;
+import static sd2526.trab.api.java.Result.ErrorCode.CONFLICT;
+import static sd2526.trab.api.java.Result.ErrorCode.FORBIDDEN;
+import static sd2526.trab.api.java.Result.error;
+import static sd2526.trab.api.java.Result.ok;
 import sd2526.trab.api.java.Users;
 import sd2526.trab.impl.api.java.AdminUsers;
 import sd2526.trab.impl.db.DB;
+import static sd2526.trab.impl.java.clients.Clients.AdminMessagesClient;
 
 
 public class JavaUsers extends JavaBaseService implements Users, AdminUsers {
@@ -32,8 +31,15 @@ public class JavaUsers extends JavaBaseService implements Users, AdminUsers {
 	public Result<String> postUser(User user) {
 		Log.info(() -> "postUser: user=%s\n".formatted(user));
 		
-		if( badUserInfo( user ) )
+		if( badUserInfo( user ) ) {
+			String name = user == null ? null : user.getName();
+			String pwd = user == null ? null : user.getPwd();
+			String displayName = user == null ? null : user.getDisplayName();
+			String domain = user == null ? null : user.getDomain();
+			Log.warning(() -> "postUser rejected BAD_REQUEST: name=%s pwdPresent=%s displayName=%s userDomain=%s expectedDomain=%s"
+					.formatted(name, pwd != null && !pwd.isEmpty(), displayName, domain, THIS_DOMAIN));
 			return error(BAD_REQUEST);
+		}
 
 		var userAddress = "%s@%s".formatted(user.getName(), THIS_DOMAIN);
 
