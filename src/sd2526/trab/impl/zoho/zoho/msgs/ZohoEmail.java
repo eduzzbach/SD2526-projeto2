@@ -6,5 +6,6 @@ public record ZohoEmail(
         String folderId,
         String messageId,
         String toAddress,
-        String fromAddress
+        String fromAddress,
+        String content
 ) {}

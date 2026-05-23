@@ -164,15 +164,35 @@ public class Zoho {
 
         try (Response response = service.execute(request)) {
             if( response.isSuccessful() ) {
-                var data = JSON.decode(response.getBody(), ZohoEmailReply.class).data();
-                if (data != null && !data.isEmpty()) {
-                    var created = data.get(0);
-                if (created.messageId() != null && !created.messageId().isBlank()) {
-                        LOG.log(Level.INFO, "SUCCESFULL POST: {0}", response.getBody());
-                        return Result.ok(created.messageId());
+                var body = response.getBody();
+                String messageId = null;
+
+                try {
+                    var data = JSON.decode(body, ZohoEmailReply.class).data();
+                    if (data != null && !data.isEmpty() && data.get(0) != null)
+                        messageId = data.get(0).messageId();
+                } catch (Exception ignored) {
+                    // Zoho may return data as object instead of array for POST.
                 }
+
+                if (messageId == null || messageId.isBlank()) {
+                    try {
+                        var map = JSON.toMap(JSON.decode(body, Object.class));
+                        Object dataObj = map.get("data");
+                        if (dataObj instanceof java.util.Map<?, ?> dataMap) {
+                            Object idObj = dataMap.get("messageId");
+                            if (idObj == null)
+                                idObj = dataMap.get("messageid");
+                            if (idObj != null)
+                                messageId = String.valueOf(idObj);
+                        }
+                    } catch (Exception ignored) {
+                        // Leave messageId null and fallback below.
+                    }
                 }
-                return Result.error(Result.ErrorCode.INTERNAL_ERROR);
+
+                LOG.log(Level.INFO, "SUCCESFULL POST: {0}", body);
+                return Result.ok((messageId == null || messageId.isBlank()) ? "OK" : messageId);
             }
             else {
                 LOG.log(Level.SEVERE, "FAILED POST: {0}/{1}", new Object[] { response.getCode(), response.getBody() });
@@ -181,8 +201,29 @@ public class Zoho {
         }
     }
 
+    public String getAccountEmail() throws Exception {
+        var account = getAccount();
+        return account != null ? account.primaryEmailAddress() : null;
+    }
 
-    public Result<String> deleteEmail(Message msg) throws Exception {
+    public Result<Void> deleteEmailById(String folderId, String messageId) throws Exception {
+        if (folderId == null || folderId.isBlank() || messageId == null || messageId.isBlank())
+            return Result.error(Result.ErrorCode.BAD_REQUEST);
+
+        var accessToken = new OAuth2AccessToken(tokenManager.getValidAccessToken());
+        var url = MAIL_API_BASE + ACCOUNTS + "/" + getAccountId() + "/folders/" + folderId + "/messages/" + messageId;
+        OAuthRequest request = new OAuthRequest(Verb.DELETE, url);
+        service.signRequest(accessToken, request);
+
+        try (Response response = service.execute(request)) {
+            if (response.isSuccessful())
+                return Result.ok();
+            LOG.log(Level.SEVERE, "FAILED DELETE BY ID: {0}/{1}", new Object[] { response.getCode(), response.getBody() });
+            return Result.error(Result.ErrorCode.INTERNAL_ERROR);
+        }
+    }
+
+        public Result<String> deleteEmail(Message msg) throws Exception {
         var accessToken = new OAuth2AccessToken( tokenManager.getValidAccessToken() );
         OAuthRequest request = new OAuthRequest(Verb.DELETE, MAIL_API_BASE + ACCOUNTS + "/" + getAccountId() + "/messages");
 
