@@ -24,7 +24,7 @@ public class KafkaSubscriber {
 		props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 		//props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
 
-		props.put(ConsumerConfig.GROUP_ID_CONFIG, new UUID(0L,0L).toString());
+		props.put(ConsumerConfig.GROUP_ID_CONFIG, UUID.randomUUID().toString());
 
 		// Class that can serialize the key format (string)
 		props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());

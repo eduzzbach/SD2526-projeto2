@@ -35,12 +35,12 @@ import sd2526.trab.impl.utils.Sleep;
 
 public class JavaMessages extends JavaBaseService implements Messages, AdminMessages {
 	
-	private static final int REMOTE_COMM_DEADLINE = 90000;
+	protected static final int REMOTE_COMM_DEADLINE = 90000;
 	private static final long MESSAGES_CACHE_EXPIRATION = 30000;
 	private static final long DIRTY_INBOX_CACHE_EXPIRATION = 10000;
 
-	final JobDispatcher jobs;
-	final AtomicLong counter = new AtomicLong(0L);	
+	protected final JobDispatcher jobs;
+	protected final AtomicLong counter = new AtomicLong(0L);	
 	private static Logger Log = Logger.getLogger(JavaMessages.class.getName());
 
 	
@@ -68,7 +68,7 @@ public class JavaMessages extends JavaBaseService implements Messages, AdminMess
 			})
 			.build();
 	
-	private JavaMessages() {
+	protected JavaMessages() {
 		this.jobs = new JobDispatcher();
 	}
 
@@ -101,17 +101,22 @@ public class JavaMessages extends JavaBaseService implements Messages, AdminMess
 					.then( () -> DB.select( sqlExpr, String.class));		
 	}
 	
+	private static String sqlLiteral(String value) {
+		return value.replace("'", "''");
+	}
+
 	@Override
 	public Result<List<String>> searchInbox(String name, String pwd, String query) {
 		Log.info( () -> "searchInbox : name = %s, pwd = %s, query=%s\n".formatted(name, pwd, query));
-		
+
+		var safeQuery = sqlLiteral(query.toUpperCase());
 		var sqlExpr = """
 				SELECT m.id FROM Message m
 				INNER JOIN InboxEntry e
 				ON e.mid = m.id 
 				AND e.recipient = '%s'
 				WHERE (upper(m.subject) LIKE '%%%s%%' OR upper(m.contents) LIKE '%%%s%%')
-				""".formatted(name, query.toUpperCase(), query.toUpperCase());
+				""".formatted(sqlLiteral(name), safeQuery, safeQuery);
 
 		return getUser(name, pwd )
 				.then( () -> DB.select( sqlExpr, String.class));		
@@ -154,7 +159,7 @@ public class JavaMessages extends JavaBaseService implements Messages, AdminMess
 		return Clients.AdminUsersClient.get().checkUsers(addresses);
 	}
 
-	private void deliverToKnownLocalRecipients(Collection<String> addresses, Message msg) {
+	protected void deliverToKnownLocalRecipients(Collection<String> addresses, Message msg) {
 		Log.info( () -> "deliverToKnownLocalRecipients : local known addresses = %s, msg = %s\n".formatted(addresses, msg));
 
 		DB.transaction((hibernate) -> {
@@ -167,7 +172,7 @@ public class JavaMessages extends JavaBaseService implements Messages, AdminMess
 		
 	}
 		
-	private void reportUnknownLocalRecipients(Collection<String> addresses, Message msg) {
+	protected void reportUnknownLocalRecipients(Collection<String> addresses, Message msg) {
 		Log.info( () -> "reportUnknownLocalRecipients : unknown addresses = %s, msg = %s\n".formatted(addresses, msg));
 
 		var senderDomain = super.getDomain( msg.senderAddress() );
@@ -189,7 +194,7 @@ public class JavaMessages extends JavaBaseService implements Messages, AdminMess
 		}
 	}	
 		
-	private Result<Void> postToLocalInboxes( Collection<String> addresses, Message msg) {
+	protected Result<Void> postToLocalInboxes( Collection<String> addresses, Message msg) {
 		Log.info( () -> "postToLocalInboxes : localRecipients = %s, msg = %s\n".formatted(addresses, msg));
 
 		return checkUsers(addresses)
@@ -216,7 +221,7 @@ public class JavaMessages extends JavaBaseService implements Messages, AdminMess
 		return postToLocalInboxes(localAddresses, msg);
 	}
 
-	private Result<Void> deleteFromLocalInbox(String mid) {
+	protected Result<Void> deleteFromLocalInbox(String mid) {
 		Log.info( () -> "deleteFromLocalInbox : mid = %s\n".formatted(mid));
 		
 		var sql = "SELECT * FROM InboxEntry e WHERE e.mid = '%s'".formatted(mid); 
@@ -347,11 +352,11 @@ public class JavaMessages extends JavaBaseService implements Messages, AdminMess
 		}	
 		
 		
-		private List<String> getLocalRecipientAddresses(  Message msg ) {
+		protected List<String> getLocalRecipientAddresses(  Message msg ) {
 			return msg.getDestination().stream().filter( super::isLocalAddress ).toList();			
 		} 
 
-		private Set<String> getRemoteRecipientAddresses(  Message msg ) {
+		protected Set<String> getRemoteRecipientAddresses(  Message msg ) {
 			return msg.getDestination().stream().filter( Predicate.not(super::isLocalAddress)).collect( Collectors.toSet() );			
 		} 
 		

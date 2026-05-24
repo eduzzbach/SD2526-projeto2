@@ -18,13 +18,23 @@ public class KafkaUtils {
 		}
 	}
 
+	private static final String DEFAULT_BOOTSTRAP = "localhost:9092,kafka:9092";
+
 	public static void createTopic(String topic) {
-		createTopic(topic, 1, 1);
+		createTopic(topic, DEFAULT_BOOTSTRAP);
+	}
+
+	public static void createTopic(String topic, String bootstrapServers) {
+		createTopic(topic, bootstrapServers, 1, 1);
 	}
 
 	public static void createTopic(String topic, int numPartitions, int replicationFactor) {
+		createTopic(topic, DEFAULT_BOOTSTRAP, numPartitions, replicationFactor);
+	}
 
-		try (AdminClient client = create()) {
+	public static void createTopic(String topic, String bootstrapServers, int numPartitions, int replicationFactor) {
+
+		try (AdminClient client = create(bootstrapServers)) {
 
 			List<NewTopic> list = new ArrayList<NewTopic>();
 			list.add(new NewTopic(topic, numPartitions, (short) replicationFactor));
@@ -43,9 +53,9 @@ public class KafkaUtils {
 		}
 	}
 
-	static private AdminClient create() {
+	static private AdminClient create(String bootstrapServers) {
 		Properties props = new Properties();
-		props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+		props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
 		props.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, "5000");
 		return AdminClient.create(props);
 	}

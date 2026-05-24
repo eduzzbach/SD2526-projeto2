@@ -9,7 +9,7 @@ public class SyncPoint {
 	
 	private SyncPoint() {
 		this.result = new ConcurrentHashMap<Long, String>();
-		this.version = 0;
+		this.version = -1;
 	}
 	
 	private static SyncPoint instance = null;
@@ -43,9 +43,15 @@ public class SyncPoint {
 		}
 	}
 	
+	public synchronized long getVersion() {
+		return version;
+	}
+
 	public synchronized void setResult( long n, String res ) {
-		if( n < version)
-			throw new RuntimeException("Version " + n + " is already set");
+		if (n < version) {
+			notifyAll();
+			return;
+		}
 		if ( res != null ) {
 			result.put(n, res);
 		}
