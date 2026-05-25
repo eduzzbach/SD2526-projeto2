@@ -29,7 +29,6 @@ public class ClientFactory<T> {
 			.build(new CacheLoader<>() {
 				@Override
 				public T load(URI uri) throws Exception {
-					Log.info(() -> "Creating client for URI: %s".formatted(uri));
 					return newClient( uri.toString() );
 				}
 			});
@@ -48,8 +47,6 @@ public class ClientFactory<T> {
 		var sn = "%s@%s".formatted(serviceName, domain);
 		var discovered = Discovery.getInstance().knownUrisOf(sn, 1);
 		var selected = discovered[0];
-		Log.info(() -> "Client lookup for service=%s domain=%s candidates=%s selected=%s"
-				.formatted(serviceName, domain, Arrays.toString(discovered), selected));
 		return get(selected);
 	}
 	
@@ -65,8 +62,6 @@ public class ClientFactory<T> {
 	public T async() {
 		var discovered = Discovery.getInstance().knownUrisOf(serviceName, 1);
 		var selected = discovered[0];
-		Log.info(() -> "Async client lookup for service=%s candidates=%s selected=%s"
-				.formatted(serviceName, Arrays.toString(discovered), selected));
 		return get(selected);
 	}
 	

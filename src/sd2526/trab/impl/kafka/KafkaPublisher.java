@@ -42,7 +42,6 @@ public class KafkaPublisher {
 		try {
 			Future<RecordMetadata> promise = producer.send(new ProducerRecord<String, String>(topic, key, value));
 			RecordMetadata rec = promise.get();
-			System.out.println("Published to topic " + topic + " with offset " + rec.offset());
 			return rec.offset();
 		} catch (ExecutionException | InterruptedException x) {
 			x.printStackTrace();
@@ -55,7 +54,6 @@ public class KafkaPublisher {
 		try {
 			Future<RecordMetadata> promise = producer.send(new ProducerRecord<String, String>(topic, value));
 			RecordMetadata rec = promise.get();
-			System.out.println("Published to topic " + topic + " with offset " + rec.offset());
 			return rec.offset();
 		} catch (ExecutionException | InterruptedException x) {
 			x.printStackTrace();

@@ -9,6 +9,7 @@ import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.CreateTopicsResult;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.common.errors.TopicExistsException;
 
 public class KafkaUtils {
 
@@ -46,8 +47,11 @@ public class KafkaUtils {
 
 
 		} catch (ExecutionException x) {
-			System.err.printf("Topic: %s already exists...\n", topic);
-			x.printStackTrace();
+			if (x.getCause() instanceof TopicExistsException) {
+				System.err.printf("Topic: %s already exists...\n", topic);
+			} else {
+				x.printStackTrace();
+			}
 		} catch (Exception e) {
 			e.printStackTrace();
 		}

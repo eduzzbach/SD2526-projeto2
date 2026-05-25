@@ -16,7 +16,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import com.google.common.cache.Cache;
@@ -31,7 +30,6 @@ import sd2526.trab.impl.api.java.AdminMessages;
 import sd2526.trab.impl.db.DB;
 import sd2526.trab.impl.java.clients.Clients;
 import sd2526.trab.impl.utils.IP;
-import sd2526.trab.impl.utils.Sleep;
 
 public class JavaMessages extends JavaBaseService implements Messages, AdminMessages {
 	
@@ -41,8 +39,6 @@ public class JavaMessages extends JavaBaseService implements Messages, AdminMess
 
 	protected final JobDispatcher jobs;
 	protected final AtomicLong counter = new AtomicLong(0L);	
-	private static Logger Log = Logger.getLogger(JavaMessages.class.getName());
-
 	
 	protected final Cache<String, Message> messagesCache = CacheBuilder.newBuilder()
 			.expireAfterWrite(Duration.ofMillis(MESSAGES_CACHE_EXPIRATION))
@@ -74,16 +70,12 @@ public class JavaMessages extends JavaBaseService implements Messages, AdminMess
 
 	@Override
 	public Result<String> postMessage(String pwd, Message msg) {
-		Log.info( () -> "postMessage : pwd = %s, msg = %s\n".formatted(pwd, msg));
-
 		return getUser(msg.getSender(), pwd)					
 				.thenWith( (user) -> doAsyncPost( user, msg ));			
 	}
 
 	@Override
 	public Result<Message> getInboxMessage(String name, String mid, String pwd) {
-		Log.info( () -> "getInboxMessage : name = %s, mid = %s, pwd = %s\n".formatted(name, mid, pwd));
-		
 		if( badParams( name, mid, pwd ) )
 			return error(BAD_REQUEST);
 		
@@ -94,9 +86,13 @@ public class JavaMessages extends JavaBaseService implements Messages, AdminMess
 
 	@Override
 	public Result<List<String>> getAllInboxMessages(String name, String pwd) {
-		Log.info( () -> "getAllInboxMessages : name = %s, pwd = %s\n".formatted(name, pwd));
-		
-		var sqlExpr = "SELECT m.mid FROM InboxEntry m WHERE m.recipient = '%s'".formatted(name);
+		var sqlExpr = """
+				SELECT m.id FROM Message m
+				INNER JOIN InboxEntry e
+				ON e.mid = m.id
+				AND e.recipient = '%s'
+				ORDER BY m.creationTime DESC, m.id DESC
+				""".formatted(sqlLiteral(name));
 		return getUser(name, pwd )
 					.then( () -> DB.select( sqlExpr, String.class));		
 	}
@@ -107,8 +103,6 @@ public class JavaMessages extends JavaBaseService implements Messages, AdminMess
 
 	@Override
 	public Result<List<String>> searchInbox(String name, String pwd, String query) {
-		Log.info( () -> "searchInbox : name = %s, pwd = %s, query=%s\n".formatted(name, pwd, query));
-
 		var safeQuery = sqlLiteral(query.toUpperCase());
 		var sqlExpr = """
 				SELECT m.id FROM Message m
@@ -116,6 +110,7 @@ public class JavaMessages extends JavaBaseService implements Messages, AdminMess
 				ON e.mid = m.id 
 				AND e.recipient = '%s'
 				WHERE (upper(m.subject) LIKE '%%%s%%' OR upper(m.contents) LIKE '%%%s%%')
+				ORDER BY m.creationTime DESC, m.id DESC
 				""".formatted(sqlLiteral(name), safeQuery, safeQuery);
 
 		return getUser(name, pwd )
@@ -124,8 +119,6 @@ public class JavaMessages extends JavaBaseService implements Messages, AdminMess
 	
 	@Override
 	public Result<Void> removeInboxMessage(String name, String mid, String pwd) {
-		Log.info( () -> "removeInboxMessage : name = %s, mid = %s, pwd = %s\n".formatted(name, mid, pwd));
-		
 		return getUser(name, pwd )
 				.then( () -> DB.deleteOne( new InboxEntry(mid, name) ) ).mapToVoid()
 				.then( () -> {
@@ -135,9 +128,6 @@ public class JavaMessages extends JavaBaseService implements Messages, AdminMess
 
 	@Override
 	public Result<Void> deleteMessage(String name, String mid, String pwd) {
-		Log.info( () -> "deleteMessage : name = %s, mid = %s, pwd = %s\n".formatted(name, mid, pwd));
-
-
 		return getUser(name, pwd )
 			.then( () -> getCachedMessage(mid))
 			.thenWith(msg -> name.equals( getName(msg.senderAddress())) ? ok(msg) : error(FORBIDDEN) )
@@ -160,8 +150,6 @@ public class JavaMessages extends JavaBaseService implements Messages, AdminMess
 	}
 
 	protected void deliverToKnownLocalRecipients(Collection<String> addresses, Message msg) {
-		Log.info( () -> "deliverToKnownLocalRecipients : local known addresses = %s, msg = %s\n".formatted(addresses, msg));
-
 		DB.transaction((hibernate) -> {
 			hibernate.persistOne( msg );
 			for( var address : addresses )
@@ -173,8 +161,6 @@ public class JavaMessages extends JavaBaseService implements Messages, AdminMess
 	}
 		
 	protected void reportUnknownLocalRecipients(Collection<String> addresses, Message msg) {
-		Log.info( () -> "reportUnknownLocalRecipients : unknown addresses = %s, msg = %s\n".formatted(addresses, msg));
-
 		var senderDomain = super.getDomain( msg.senderAddress() );
 		
 		try {
@@ -195,8 +181,6 @@ public class JavaMessages extends JavaBaseService implements Messages, AdminMess
 	}	
 		
 	protected Result<Void> postToLocalInboxes( Collection<String> addresses, Message msg) {
-		Log.info( () -> "postToLocalInboxes : localRecipients = %s, msg = %s\n".formatted(addresses, msg));
-
 		return checkUsers(addresses)
 				.thenWith( unknownAddresses -> {
 
@@ -215,15 +199,11 @@ public class JavaMessages extends JavaBaseService implements Messages, AdminMess
 	
 	@Override
 	public Result<Void> remotePostMessage(Message msg) {
-		Log.info( () -> "postRemoteMessage : msg = %s\n".formatted(msg));
-				
 		var localAddresses = getLocalRecipientAddresses(msg);		
 		return postToLocalInboxes(localAddresses, msg);
 	}
 
 	protected Result<Void> deleteFromLocalInbox(String mid) {
-		Log.info( () -> "deleteFromLocalInbox : mid = %s\n".formatted(mid));
-		
 		var sql = "SELECT * FROM InboxEntry e WHERE e.mid = '%s'".formatted(mid); 
 		
 		return DB.transaction( hibernate -> {
@@ -238,8 +218,6 @@ public class JavaMessages extends JavaBaseService implements Messages, AdminMess
 	
 	@Override
 	public Result<Void> remoteDeleteMessage(String mid) {
-		Log.info( () -> "remoteDeleteMessage : mid = %s\n".formatted(mid));
-		
 		return deleteFromLocalInbox(mid);
 	}
 	
@@ -283,9 +261,6 @@ public class JavaMessages extends JavaBaseService implements Messages, AdminMess
 			var localAdresses = getLocalRecipientAddresses(msg);
 			var remoteAddresses = getRemoteRecipientAddresses(msg);
 
-			System.out.println("Local Recipients:" + localAdresses);
-			System.out.println("Remote Recipients:" + remoteAddresses);
-
 			if (localAdresses.size() > 0)
 				postToLocalInboxes(localAdresses, msg);
 
@@ -325,7 +300,6 @@ public class JavaMessages extends JavaBaseService implements Messages, AdminMess
 		}
 		
 		public void doAsyncRemotePost( String remoteDomain, Message msg ) {
-			Log.info( () -> "\nenqueueRemotePost : remoteDomain=%s, msg = %s\n".formatted(remoteDomain, msg));			
 			jobs.submit(remoteDomain, () -> {
 				super.reTry(() -> Clients.AdminMessagesClient.get(remoteDomain).remotePostMessage(msg), REMOTE_COMM_DEADLINE);			
 			});				
@@ -333,8 +307,6 @@ public class JavaMessages extends JavaBaseService implements Messages, AdminMess
 		
 		@Override
 		public Result<Void> remoteDeleteUserInbox(String name) {
-			Log.info( () -> "remoteDeleteUserInbox : name = %s\n".formatted(name));
-			
 			var sqlExpr = "SELECT * FROM InboxEntry e WHERE e.recipient = '%s'".formatted(name); 
 			
 			return DB.transaction( hibernate -> {

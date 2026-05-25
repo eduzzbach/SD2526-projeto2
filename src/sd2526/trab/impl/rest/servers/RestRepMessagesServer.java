@@ -2,6 +2,7 @@ package sd2526.trab.impl.rest.servers;
 
 import java.net.UnknownHostException;
 import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -26,6 +27,7 @@ public class RestRepMessagesServer extends AbstractRestServer {
 
 	private static KafkaPublisher publisher;
 	private static String replicationTopic;
+	private static String kafkaAddr;
 
 	RestRepMessagesServer() throws UnknownHostException {
 		super(Log, Messages.SERVICE_NAME, PORT);
@@ -35,22 +37,35 @@ public class RestRepMessagesServer extends AbstractRestServer {
 	void registerResources(ResourceConfig config) {
 		config.register(RestRepMessagesResource.class);
 		config.register(VersionHeaderHandler.class);
-		config.register(PrimaryRedirectFilter.class);
-	}
-
-	public static boolean isPrimary() {
-		if (Boolean.parseBoolean(System.getProperty("rep.primary", "false")))
-			return true;
-		return IP.hostname().startsWith("messages0.");
 	}
 
 	public static long publishReplication(ReplicationEvent event) {
-		return publisher.publish(replicationTopic, JSON.encode(event));
+		if (publisher == null || replicationTopic == null) {
+			Log.severe("Replication pipeline is not initialized yet.");
+			return -1;
+		}
+
+		for (int attempt = 1; attempt <= 3; attempt++) {
+			var offset = publisher.publish(replicationTopic, JSON.encode(event));
+			if (offset >= 0)
+				return offset;
+
+			Log.warning("Failed to publish replication event (attempt %d/3).".formatted(attempt));
+			if (attempt < 3 && kafkaAddr != null)
+				publisher = KafkaPublisher.createPublisher(kafkaAddr);
+		}
+
+		return -1;
 	}
 
 	private static void onReplicationRecord(ConsumerRecord<String, String> record) {
 		try {
 			var event = JSON.decode(record.value(), ReplicationEvent.class);
+			if (event == null || event.getOp() == null) {
+				SyncPoint.getSyncPoint().setResult(record.offset(), "BAD_REQUEST");
+				return;
+			}
+
 			String result;
 			if (ReplicationEvent.POST.equals(event.getOp())) {
 				var r = RepJavaMessages.getInstance().applyReplicationPost(event);
@@ -61,15 +76,14 @@ public class RestRepMessagesServer extends AbstractRestServer {
 			}
 
 			SyncPoint.getSyncPoint().setResult(record.offset(), result);
-			Log.info(() -> "Applied %s offset=%d -> %s".formatted(event.getOp(), record.offset(), result));
 		} catch (Exception x) {
-			x.printStackTrace();
+			Log.log(Level.SEVERE, "Failed to process replication record at offset " + record.offset(), x);
 			SyncPoint.getSyncPoint().setResult(record.offset(), "INTERNAL_ERROR");
 		}
 	}
 
 	private static void startKafkaReplication() {
-		var kafkaAddr = System.getProperty("kafka.addr", DEFAULT_KAFKA_ADDR);
+		kafkaAddr = System.getProperty("kafka.addr", DEFAULT_KAFKA_ADDR);
 		replicationTopic = System.getProperty("kafka.rep.topic", REPLICATION_TOPIC_PREFIX + IP.domain());
 
 		KafkaUtils.createTopic(replicationTopic, kafkaAddr);

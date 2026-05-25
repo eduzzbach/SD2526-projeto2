@@ -82,7 +82,7 @@ class DiscoveryImpl implements Discovery {
 
 	@Override
 	public void announce(String serviceName, String serviceURI) {
-		Log.info(String.format("Starting Discovery announcements on: %s for: %s -> %s\n", DISCOVERY_ADDR, serviceName, serviceURI));
+		Log.fine(String.format("Starting Discovery announcements on: %s for: %s -> %s\n", DISCOVERY_ADDR, serviceName, serviceURI));
 
 		var pktBytes = String.format("%s%s%s", serviceName, DELIMITER, serviceURI).getBytes();
 		var pkt = new DatagramPacket(pktBytes, pktBytes.length, DISCOVERY_ADDR);
@@ -112,13 +112,13 @@ class DiscoveryImpl implements Discovery {
 			var res = uris.getOrDefault(serviceName, Collections.emptySet());
 			if( res.size() >= minEntries ) {
 				var known = res.toArray( new URI[res.size()]);
-				Log.info(() -> "Discovery lookup service=%s min=%d found=%d uris=%s"
+				Log.fine(() -> "Discovery lookup service=%s min=%d found=%d uris=%s"
 						.formatted(serviceName, minEntries, res.size(), Arrays.toString(known)));
 				return known;
 			} else {
 				if (!waitingLogged) {
 					int currentSize = res.size();
-					Log.info(() -> "Discovery waiting for service=%s min=%d current=%d"
+					Log.fine(() -> "Discovery waiting for service=%s min=%d current=%d"
 							.formatted(serviceName, minEntries, currentSize));
 					waitingLogged = true;
 				}
@@ -128,7 +128,7 @@ class DiscoveryImpl implements Discovery {
 	}
 
 	private void startListener() {
-		Log.info(String.format("Starting discovery on multicast group: %s, port: %d\n", DISCOVERY_ADDR.getAddress(), DISCOVERY_ADDR.getPort()));
+		Log.fine(String.format("Starting discovery on multicast group: %s, port: %d\n", DISCOVERY_ADDR.getAddress(), DISCOVERY_ADDR.getPort()));
 
 		new Thread(() -> {
 			try (var ms = new MulticastSocket(DISCOVERY_ADDR.getPort())) {				
@@ -145,8 +145,6 @@ class DiscoveryImpl implements Discovery {
 							var uri = URI.create(parts[1]);
 							var known = uris.computeIfAbsent(serviceName, (k) -> ConcurrentHashMap.newKeySet());
 							known.add(uri);
-							Log.info(() -> "Discovery learned service=%s uri=%s total=%d"
-									.formatted(serviceName, uri, known.size()));
 						}
 
 					} catch (Exception x) {

@@ -16,7 +16,6 @@ public abstract class AbstractServer {
 		this.Log = log;
 		this.service = service;
 		this.serverURI = serverURI;
-		System.out.println("MY DOMAIN:" + IP.domain() );
 	}
 	
 	protected String serviceName() {
