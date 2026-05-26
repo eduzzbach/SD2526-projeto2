@@ -10,7 +10,6 @@ import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
@@ -58,6 +57,7 @@ class DiscoveryImpl implements Discovery {
 
 	static final int DISCOVERY_RETRY_TIMEOUT = 5000;
 	static final int DISCOVERY_ANNOUNCE_PERIOD = 1000;
+	static final int STALE_ANNOUNCEMENT_TIMEOUT = 4 * DISCOVERY_ANNOUNCE_PERIOD;
 	static final InetSocketAddress DISCOVERY_ADDR = new InetSocketAddress("226.226.226.226", 2266);
 
 	// Used separate the two fields that make up a service announcement.
@@ -67,7 +67,7 @@ class DiscoveryImpl implements Discovery {
 
 	private static Discovery singleton;
 
-	private Map<String, Set<URI>> uris = new ConcurrentHashMap<>();
+	private Map<String, Map<URI, Long>> uris = new ConcurrentHashMap<>();
 	
 	synchronized static Discovery getInstance() {
 		if (singleton == null) {
@@ -109,21 +109,42 @@ class DiscoveryImpl implements Discovery {
 	public URI[] knownUrisOf(String serviceName, int minEntries) {
 		boolean waitingLogged = false;
 		while(true) {
-			var res = uris.getOrDefault(serviceName, Collections.emptySet());
-			if( res.size() >= minEntries ) {
-				var known = res.toArray( new URI[res.size()]);
+			var knownMap = uris.getOrDefault(serviceName, Collections.emptyMap());
+			var now = System.currentTimeMillis();
+			var knownList = knownMap.entrySet().stream()
+					.filter(e -> now - e.getValue() <= STALE_ANNOUNCEMENT_TIMEOUT)
+					.map(Map.Entry::getKey)
+					.toList();
+
+			if (knownList.size() >= minEntries) {
+				var known = knownList.toArray(new URI[knownList.size()]);
 				Log.fine(() -> "Discovery lookup service=%s min=%d found=%d uris=%s"
-						.formatted(serviceName, minEntries, res.size(), Arrays.toString(known)));
+						.formatted(serviceName, minEntries, knownList.size(), Arrays.toString(known)));
 				return known;
 			} else {
 				if (!waitingLogged) {
-					int currentSize = res.size();
+					int currentSize = knownList.size();
 					Log.fine(() -> "Discovery waiting for service=%s min=%d current=%d"
 							.formatted(serviceName, minEntries, currentSize));
 					waitingLogged = true;
 				}
+				pruneStale(now);
 				Sleep.ms(DISCOVERY_ANNOUNCE_PERIOD);
 			}
+		}
+	}
+
+	private void pruneStale(long now) {
+		for (var serviceEntry : uris.entrySet()) {
+			var endpoints = serviceEntry.getValue();
+			if (endpoints == null || endpoints.isEmpty())
+				continue;
+			var stale = endpoints.entrySet().stream()
+					.filter(e -> now - e.getValue() > STALE_ANNOUNCEMENT_TIMEOUT)
+					.map(Map.Entry::getKey)
+					.toList();
+			for (var uri : stale)
+				endpoints.remove(uri);
 		}
 	}
 
@@ -143,8 +164,8 @@ class DiscoveryImpl implements Discovery {
 						if (parts.length == 2) {
 							var serviceName = parts[0];
 							var uri = URI.create(parts[1]);
-							var known = uris.computeIfAbsent(serviceName, (k) -> ConcurrentHashMap.newKeySet());
-							known.add(uri);
+							var known = uris.computeIfAbsent(serviceName, (k) -> new ConcurrentHashMap<>());
+							known.put(uri, System.currentTimeMillis());
 						}
 
 					} catch (Exception x) {

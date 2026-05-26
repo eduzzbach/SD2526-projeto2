@@ -1,9 +1,9 @@
 package sd2526.trab.impl.java.servers;
 
+import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.time.Duration;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
@@ -17,12 +17,14 @@ import sd2526.trab.api.java.Result.ErrorCode;
 import static sd2526.trab.api.java.Result.ErrorCode.BAD_REQUEST;
 import static sd2526.trab.api.java.Result.ErrorCode.FORBIDDEN;
 import static sd2526.trab.api.java.Result.ErrorCode.INTERNAL_ERROR;
+import static sd2526.trab.api.java.Result.ErrorCode.NOT_FOUND;
 import static sd2526.trab.api.java.Result.error;
 import static sd2526.trab.api.java.Result.ok;
 import sd2526.trab.impl.db.DB;
 import sd2526.trab.impl.kafka.ReplicationEvent;
 import sd2526.trab.impl.rest.servers.RestRepMessagesServer;
 import sd2526.trab.impl.rest.servers.VersionHeaderHandler;
+import sd2526.trab.impl.utils.Sleep;
 import sd2526.trab.impl.utils.SyncPoint;
 
 public class RepJavaMessages extends JavaMessages {
@@ -30,6 +32,8 @@ public class RepJavaMessages extends JavaMessages {
 	private static final Logger Log = Logger.getLogger(RepJavaMessages.class.getName());
 	private static final long REMOVED_ENTRY_TOMBSTONE_MS = 120000;
 	private static final long DELETED_MESSAGE_TOMBSTONE_MS = 300000;
+	private static final int INBOX_ENTRY_WAIT_RETRIES = 15;
+	private static final int INBOX_ENTRY_WAIT_MS = 30;
 
 	private final Cache<String, String> removedInboxEntries = CacheBuilder.newBuilder()
 			.expireAfterWrite(Duration.ofMillis(REMOVED_ENTRY_TOMBSTONE_MS))
@@ -56,6 +60,10 @@ public class RepJavaMessages extends JavaMessages {
 
 	private static String inboxKey(String mid, String recipient) {
 		return mid + "|" + recipient;
+	}
+
+	private static String normalizeMid(String mid) {
+		return mid == null ? null : mid.replace(' ', '+');
 	}
 
 	private void waitClientVersion() {
@@ -110,12 +118,9 @@ public class RepJavaMessages extends JavaMessages {
 	}
 
 	private Result<String> prepareAndReplicatePost(User sender, Message msg) {
-		return getCachedMessage(msg.originId()).mapValue(Message::getId).orElse(() -> {
-			syncCounterFromDatabase();
-			msg.setId("%s+%04d".formatted(THIS_DOMAIN, counter.incrementAndGet()));
-			messagesCache.put(msg.originId(), new Message(msg));
+		final String origin = msg.originId();
+		return getCachedMessage(origin).mapValue(Message::getId).orElse(() -> {
 			msg.setSender("%s <%s@%s>".formatted(sender.getDisplayName(), sender.getName(), sender.getDomain()));
-			messagesCache.put(msg.getId(), msg);
 
 			var localAddresses = getLocalRecipientAddresses(msg);
 			var remoteAddresses = getRemoteRecipientAddresses(msg);
@@ -131,10 +136,17 @@ public class RepJavaMessages extends JavaMessages {
 				knownLocal.removeAll(unknownLocal);
 			}
 
+			// Publish WITHOUT an ID; the final ID is derived from the Kafka offset
+			// inside applyReplicationPost, ensuring uniqueness across all replicas.
 			var event = ReplicationEvent.post(new Message(msg), knownLocal, unknownLocal);
 			var result = replicatePostAndWait(event);
 			if (!result.isOK())
 				return result;
+
+			// Now that we have the globally-unique ID, update the message and caches.
+			msg.setId(result.value());
+			messagesCache.put(origin, new Message(msg));
+			messagesCache.put(msg.getId(), new Message(msg));
 
 			if (!remoteAddresses.isEmpty())
 				scheduleRemoteDelivery(msg, remoteAddresses);
@@ -160,16 +172,6 @@ public class RepJavaMessages extends JavaMessages {
 				}
 			});
 		}
-	}
-
-	private void syncCounterFromDatabase() {
-		var prefix = THIS_DOMAIN + "+";
-		var sql = "SELECT m.id FROM Message m WHERE m.id LIKE '%s%%'".formatted(prefix);
-		var ids = DB.select(sql, String.class);
-		if (!ids.isOK())
-			return;
-		for (var id : ids.value())
-			bumpCounterFromMessageId(id);
 	}
 
 	private Result<Void> ensureKnownLocalRecipients(Set<String> addresses, Message msg) {
@@ -208,15 +210,43 @@ public class RepJavaMessages extends JavaMessages {
 		});
 	}
 
-	public Result<String> applyReplicationPost(ReplicationEvent event) {
+	private Result<Void> ensureMessageExists(Message msg) {
+		if (deletedMessageIds.getIfPresent(msg.getId()) != null)
+			return ok();
+
+		return DB.transaction(hibernate -> {
+			var existingMsg = hibernate.getOne(msg.getId(), Message.class);
+			if (existingMsg.isOK())
+				return ok();
+			if (existingMsg.error() != ErrorCode.NOT_FOUND)
+				return error(existingMsg.error());
+
+			var persistedMsg = hibernate.persistOne(new Message(msg));
+			if (!persistedMsg.isOK() && persistedMsg.error() != ErrorCode.CONFLICT)
+				return error(persistedMsg.error());
+
+			return ok();
+		});
+	}
+
+	public Result<String> applyReplicationPost(ReplicationEvent event, long offset) {
 		var msg = event.getMessage();
-		if (msg == null || msg.getId() == null)
+		if (msg == null)
 			return error(BAD_REQUEST);
+
+		// Local messages arrive without an ID; assign one from the Kafka offset so
+		// all replicas derive the same, collision-free ID for the same event.
+		if (msg.getId() == null)
+			msg.setId("%s+%04d".formatted(THIS_DOMAIN, offset));
 
 		if (deletedMessageIds.getIfPresent(msg.getId()) != null)
 			return ok(msg.getId());
 
 		bumpCounterFromMessageId(msg.getId());
+
+		var persisted = ensureMessageExists(msg);
+		if (!persisted.isOK())
+			return error(persisted.error());
 
 		if (!event.getKnownLocal().isEmpty()) {
 			var delivery = ensureKnownLocalRecipients(event.getKnownLocal(), msg);
@@ -256,7 +286,38 @@ public class RepJavaMessages extends JavaMessages {
 	@Override
 	public Result<Message> getInboxMessage(String name, String mid, String pwd) {
 		waitClientVersion();
-		return super.getInboxMessage(name, mid, pwd);
+		final String normalizedMid = normalizeMid(mid);
+		if (badParams(name, normalizedMid, pwd))
+			return error(BAD_REQUEST);
+
+		return getUser(name, pwd)
+				.then(() -> awaitInboxEntry(normalizedMid, name))
+				.then(() -> DB.getOne(normalizedMid, Message.class)
+						.orElse(() -> {
+							var cached = messagesCache.getIfPresent(normalizedMid);
+							if (cached == null)
+								return error(NOT_FOUND);
+							return ok(new Message(cached));
+						}));
+	}
+
+	private Result<Void> awaitInboxEntry(String mid, String recipient) {
+		var key = inboxKey(mid, recipient);
+		for (int i = 0; i <= INBOX_ENTRY_WAIT_RETRIES; i++) {
+			if (removedInboxEntries.getIfPresent(key) != null)
+				return error(NOT_FOUND);
+
+			var entry = DB.getOne(new InboxEntry(mid, recipient), InboxEntry.class);
+			if (entry.isOK())
+				return ok();
+			if (entry.error() != ErrorCode.NOT_FOUND)
+				return error(entry.error());
+
+			if (i < INBOX_ENTRY_WAIT_RETRIES)
+				Sleep.ms(INBOX_ENTRY_WAIT_MS);
+		}
+
+		return error(NOT_FOUND);
 	}
 
 	@Override
@@ -273,11 +334,12 @@ public class RepJavaMessages extends JavaMessages {
 
 	@Override
 	public Result<Void> removeInboxMessage(String name, String mid, String pwd) {
-		if (badParams(name, mid, pwd))
+		final String normalizedMid = normalizeMid(mid);
+		if (badParams(name, normalizedMid, pwd))
 			return error(BAD_REQUEST);
 
 		return getUser(name, pwd)
-				.then(() -> replicateVoidAndWait(ReplicationEvent.remove(name, mid)));
+				.then(() -> replicateVoidAndWait(ReplicationEvent.remove(name, normalizedMid)));
 	}
 
 	public Result<Void> applyReplicationRemove(ReplicationEvent event) {
@@ -296,13 +358,21 @@ public class RepJavaMessages extends JavaMessages {
 
 	@Override
 	public Result<Void> deleteMessage(String name, String mid, String pwd) {
+		final String normalizedMid = normalizeMid(mid);
 		return getUser(name, pwd)
 				.then(() -> {
-					var res = DB.getOne(mid, Message.class);
-					if (res.error() == ErrorCode.NOT_FOUND)
-						return ok();
-					return res.thenWith(msg -> name.equals(getName(msg.senderAddress())) ? ok(msg) : error(FORBIDDEN))
-							.thenWith(msg -> replicateVoidAndWait(ReplicationEvent.delete(mid))
+					var msgResult = DB.getOne(normalizedMid, Message.class);
+					if (msgResult.error() == ErrorCode.NOT_FOUND) {
+						var cachedMsg = messagesCache.getIfPresent(normalizedMid);
+						if (cachedMsg == null)
+							return ok();
+						msgResult = ok(cachedMsg);
+					} else if (!msgResult.isOK()) {
+						return error(msgResult.error());
+					}
+
+					return msgResult.thenWith(msg -> name.equals(getName(msg.senderAddress())) ? ok(msg) : error(FORBIDDEN))
+							.thenWith(msg -> replicateVoidAndWait(ReplicationEvent.delete(normalizedMid))
 									.thenWith(v -> {
 										scheduleAsyncDelete(msg);
 										return ok();
@@ -341,7 +411,6 @@ public class RepJavaMessages extends JavaMessages {
 
 	public Result<Void> applyReplication(ReplicationEvent event) {
 		return switch (event.getOp()) {
-			case ReplicationEvent.POST -> applyReplicationPost(event).mapToVoid();
 			case ReplicationEvent.REMOVE -> applyReplicationRemove(event);
 			case ReplicationEvent.DELETE -> applyReplicationDelete(event);
 			default -> error(INTERNAL_ERROR);

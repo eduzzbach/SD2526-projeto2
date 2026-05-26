@@ -68,7 +68,7 @@ public class RestRepMessagesServer extends AbstractRestServer {
 
 			String result;
 			if (ReplicationEvent.POST.equals(event.getOp())) {
-				var r = RepJavaMessages.getInstance().applyReplicationPost(event);
+				var r = RepJavaMessages.getInstance().applyReplicationPost(event, record.offset());
 				result = r.isOK() ? r.value() : r.error().name();
 			} else {
 				var r = RepJavaMessages.getInstance().applyReplication(event);

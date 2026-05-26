@@ -46,8 +46,24 @@ public class ClientFactory<T> {
 	public T get(String domain) {
 		var sn = "%s@%s".formatted(serviceName, domain);
 		var discovered = Discovery.getInstance().knownUrisOf(sn, 1);
-		var selected = discovered[0];
+		var selected = selectPreferred(discovered, domain);
 		return get(selected);
+	}
+
+	private URI selectPreferred(URI[] discovered, String domain) {
+		if (discovered == null || discovered.length == 0)
+			throw new RuntimeException(Result.ErrorCode.INTERNAL_ERROR.toString());
+
+		Arrays.sort(discovered, (a, b) -> a.toString().compareToIgnoreCase(b.toString()));
+
+		var primaryPrefix = serviceName.toLowerCase() + "0." + domain.toLowerCase();
+		for (var uri : discovered) {
+			var host = uri.getHost();
+			if (host != null && host.toLowerCase().startsWith(primaryPrefix))
+				return uri;
+		}
+
+		return discovered[0];
 	}
 	
 	private T newClient( String serverURI ) {
@@ -61,6 +77,7 @@ public class ClientFactory<T> {
 	
 	public T async() {
 		var discovered = Discovery.getInstance().knownUrisOf(serviceName, 1);
+		Arrays.sort(discovered, (a, b) -> a.toString().compareToIgnoreCase(b.toString()));
 		var selected = discovered[0];
 		return get(selected);
 	}
